@@ -64,7 +64,6 @@ namespace ProjektAFI.Hubs
         {
             if (_lobbies.TryGetValue(lobbyId, out var players) && players.Count == 2)
             {
-                var word = await FetchWordFromApi();
 
                 // Skicka ordet till "ritaren" (spelaren med rollen "Ritare")
                 var drawer = players[0];
@@ -83,10 +82,7 @@ namespace ProjektAFI.Hubs
                             PlayerName = connection.Value
                         });
 
-                        if (role == "Ritare")
-                        {
-                            await Clients.Client(connection.Key).SendAsync("ReceiveWord", word);
-                        }
+                        
                     }
                 }
             }
