@@ -1,0 +1,15 @@
+﻿@{
+    ViewBag.Title = ViewBag.PageTitle ?? "Ange namn";
+}
+
+<h2>@ViewBag.FormTitle</h2>
+
+<form method="get" action="@ViewBag.FormAction">
+    @if (ViewBag.LobbyId != null)
+    {
+        <input type="hidden" name="lobbyId" value="@ViewBag.LobbyId" />
+    }
+    <label for="playerName">Namn:</label>
+    <input type="text" id="playerName" name="playerName" required />
+    <button type="submit">@ViewBag.SubmitText</button>
+</form>

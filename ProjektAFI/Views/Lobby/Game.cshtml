@@ -1,0 +1,104 @@
+﻿@{
+    ViewBag.Title = "Spel";
+    var role = ViewBag.Role as string;
+    var playerName = ViewBag.PlayerName as string;
+    var lobbyId = ViewBag.LobbyId as string;
+}
+
+<h1>Rita och Gissa</h1>
+<p>Du är: <strong>@role</strong></p>
+
+<canvas id="drawCanvas" width="500" height="400" style="border:1px solid black;"></canvas>
+
+@if (role == "Ritare") {
+    <button onclick="clearDrawing()">Rensa</button>
+}
+
+@if (role != "Ritare")
+{
+    <input type="text" id="guessInput" placeholder="Gissa ordet" />
+    <button onclick="submitGuess()">Gissa</button>
+}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.2/signalr.min.js"></script>
+<script>
+    const role = "@role";
+    const playerName = "@playerName";
+    const lobbyId = "@lobbyId";
+
+    const canvas = document.getElementById("drawCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const clear = document.getElementById("clear");
+
+    canvas.width = 500;
+    canvas.height = 400;
+
+    const connection = new signalR.HubConnectionBuilder().withUrl("/gameHub").build();
+
+    // Mottag ritdata
+    connection.on("ReceiveDrawData", function (startX, startY, x, y) {
+        drawLine(startX, startY, x, y);
+    });
+
+    connection.on("ReceiveClear", function () {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    connection.start().then(() => {
+        connection.invoke("JoinLobby", lobbyId, playerName);
+    });
+
+    function drawLine(startX, startY, x, y) {
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.closePath();
+    }
+
+    if (role === "Ritare") {
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        canvas.addEventListener("mousedown", e => {
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            lastX = e.clientX - rect.left;
+            lastY = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener("mouseup", () => isDrawing = false);
+        canvas.addEventListener("mouseleave", () => isDrawing = false);
+
+        canvas.addEventListener("mousemove", e => {
+            if (!isDrawing) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+
+            drawLine(lastX, lastY, currentX, currentY); // lokalt
+            connection.invoke("SendDrawData", lobbyId, lastX, lastY, currentX, currentY); // skicka till andra
+
+            lastX = currentX;
+            lastY = currentY;
+        });
+    }
+
+    function submitGuess() {
+        const guess = document.getElementById("guessInput").value;
+        alert("Du gissade: " + guess);
+    }
+
+    function clearDrawing() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        connection.invoke("SendClear", lobbyId);
+    }
+</script>
+

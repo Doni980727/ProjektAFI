@@ -1,0 +1,43 @@
+﻿@{
+    ViewBag.Title = "Lobby";
+}
+
+<h1>Lobby: @ViewBag.LobbyId</h1>
+
+<div>
+    <h3>Spelare i lobbyn:</h3>
+    <ul id="playerList"></ul>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.2/signalr.min.js"></script>
+<script>
+    const lobbyId = "@ViewBag.LobbyId";
+    const playerName = "@ViewBag.PlayerName";
+    let connection;
+
+    async function joinLobby() {
+        connection = new signalR.HubConnectionBuilder()
+            .withUrl("/gameHub")
+            .build();
+
+        connection.on("UpdatePlayerList", function(players) {
+            const playerList = document.getElementById("playerList");
+            playerList.innerHTML = "";
+            players.forEach(player => {
+                const li = document.createElement("li");
+                li.textContent = player;
+                playerList.appendChild(li);
+            });
+        });
+
+        await connection.start();
+        await connection.invoke("JoinLobby", lobbyId, playerName).catch(err => console.error(err));
+    }
+
+    joinLobby();
+
+    connection.on("NavigateToGame", function (gameData) {
+        const role = gameData.Drawer === playerName ? "Ritare" : "Gissare";
+        window.location.href = `/Lobby/Game?lobbyId=${lobbyId}&playerName=${playerName}&role=${role}`;
+    });
+</script>
