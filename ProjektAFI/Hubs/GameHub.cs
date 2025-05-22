@@ -55,8 +55,8 @@ namespace ProjektAFI.Hubs
 
             var timeTaken = (DateTime.UtcNow - _lobbyStartTimes[lobbyId]).TotalSeconds;
             var maxTime = 30.0;
-            var guesserScore = Math.Max(0, (int)((maxTime - timeTaken) * 10));  // max 300 poäng
-            var drawerScore = Math.Max(0, (int)(timeTaken * 5));                // max 150 poäng
+            var guesserScore = Math.Max(0, (int)((maxTime - timeTaken) * 10));
+            var drawerScore = Math.Max(0, (int)(timeTaken * 5));
 
             if (_lobbyRoles.TryGetValue(lobbyId, out var roles))
             {
@@ -69,12 +69,30 @@ namespace ProjektAFI.Hubs
                 await Clients.Group(lobbyId).SendAsync("CorrectGuess", guesser, correctWord, guesserScore, drawerScore);
                 await Clients.Group(lobbyId).SendAsync("UpdateScores", _playerScores);
 
-                // Byt roller och starta ny omgång
+                // 🔄 Växla roller
                 _lobbyRoles[lobbyId] = (guesser, drawer);
-                await Task.Delay(2000); // lite paus innan ny runda
+
+                await Task.Delay(2000); // kort paus
+
+                // 🧽 Rensa canvasen för ny runda
+                await Clients.Group(lobbyId).SendAsync("ReceiveClear");
+
+                // 🧠 Skicka nya roller till spelarna
+                foreach (var connection in _connectionIdToPlayerName)
+                {
+                    if (_lobbies[lobbyId].Contains(connection.Value))
+                    {
+                        var newRole = connection.Value == _lobbyRoles[lobbyId].Drawer ? "Ritare" : "Gissare";
+                        await Clients.Client(connection.Key).SendAsync("SetRole", newRole);
+                    }
+                }
+
+                // 🆕 Skicka nytt ord till ritare
                 await RequestWord(lobbyId);
             }
         }
+
+
 
         public async Task RequestWord(string lobbyId)
         {
@@ -88,7 +106,17 @@ namespace ProjektAFI.Hubs
                 _lobbyWords[lobbyId] = word;
                 _lobbyStartTimes[lobbyId] = DateTime.UtcNow;
 
-                await Clients.Group(lobbyId).SendAsync("ReceiveWord", word);
+                if (_lobbyRoles.TryGetValue(lobbyId, out var roles))
+                {
+                    var drawerConnection = _connectionIdToPlayerName
+                        .FirstOrDefault(kvp => kvp.Value == roles.Drawer).Key;
+
+                    if (drawerConnection != null)
+                    {
+                        await Clients.Client(drawerConnection).SendAsync("ReceiveWord", word);
+                    }
+                }
+
                 await Clients.Group(lobbyId).SendAsync("StartTimer", 30);
             }
             else
@@ -96,6 +124,7 @@ namespace ProjektAFI.Hubs
                 await Clients.Group(lobbyId).SendAsync("ReceiveWord", "Kunde inte hämta ord");
             }
         }
+
 
 
 

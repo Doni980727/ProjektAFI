@@ -1,4 +1,4 @@
-﻿﻿@{
+﻿@{
     ViewBag.Title = "Spel";
     var role = ViewBag.Role as string;
     var playerName = ViewBag.PlayerName as string;
@@ -6,7 +6,7 @@
 }
 
 <h1>Rita och Gissa</h1>
-<p>Du är: <strong>@role</strong></p>
+<p>Du är: <strong id="roleDisplay">@role</strong></p>
 
 <div id="timer" style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">
     Timer: <span id="timeLeft">--</span> sekunder
@@ -19,21 +19,15 @@
     <ul id="scoreList"></ul>
 </div>
 
+<div id="drawWordContainer" style="display:@(role == "Ritare" ? "block" : "none");">
+    <h3>Ordet du ska rita:</h3>
+    <p id="wordToDraw" style="font-size: 24px; font-weight: bold; color: black;"></p>
+</div>
 
-@if (role == "Ritare")
-{
-    <div>
-        <h3>Ordet du ska rita:</h3>
-        <p id="wordToDraw" style="font-size: 24px; font-weight: bold; color: black;"></p>
-    </div>
-    <button onclick="clearDrawing()">Rensa</button>
-}
+<button onclick="clearDrawing()" style="display:@(role == "Ritare" ? "inline-block" : "none");">Rensa</button>
 
-@if (role != "Ritare")
-{
-    <input type="text" id="guessInput" placeholder="Gissa ordet" />
-    <button onclick="submitGuess()">Gissa</button>
-}
+<input type="text" id="guessInput" placeholder="Gissa ordet" style="display:@(role != "Ritare" ? "inline-block" : "none");" />
+<button id="guessButton" onclick="submitGuess()" style="display:@(role != "Ritare" ? "inline-block" : "none");">Gissa</button>
 
 <div id="chatContainer" style="margin-top:20px; border:1px solid #ccc; height:150px; overflow-y:auto; padding:10px;">
     <h4>Chatt</h4>
@@ -48,15 +42,22 @@
 
     const canvas = document.getElementById("drawCanvas");
     const ctx = canvas.getContext("2d");
-
-    const clear = document.getElementById("clear");
-
     canvas.width = 500;
     canvas.height = 400;
 
     const connection = new signalR.HubConnectionBuilder().withUrl("/gameHub").build();
 
-    // Mottag ritdata
+    function drawLine(startX, startY, x, y) {
+        ctx.strokeStyle = "black";
+        ctx.lineWidth = 2;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.closePath();
+    }
+
     connection.on("ReceiveDrawData", function (startX, startY, x, y) {
         drawLine(startX, startY, x, y);
     });
@@ -65,92 +66,21 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     });
 
-        connection.start().then(() => {
-        connection.invoke("JoinLobby", lobbyId, playerName);
-        if (role === "Ritare") {
-            connection.invoke("RequestWord", lobbyId);
-        }
-    });
-
-    function drawLine(startX, startY, x, y) {
-        ctx.strokeStyle = "black";
-        ctx.lineWidth = 2;
-        ctx.lineCap = "round";
-
-        ctx.beginPath();
-        ctx.moveTo(startX, startY);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        ctx.closePath();
-    }
-
-    if (role === "Ritare") {
-        let isDrawing = false;
-        let lastX = 0;
-        let lastY = 0;
-
-        canvas.addEventListener("mousedown", e => {
-            isDrawing = true;
-            const rect = canvas.getBoundingClientRect();
-            lastX = e.clientX - rect.left;
-            lastY = e.clientY - rect.top;
-        });
-
-        canvas.addEventListener("mouseup", () => isDrawing = false);
-        canvas.addEventListener("mouseleave", () => isDrawing = false);
-
-        canvas.addEventListener("mousemove", e => {
-            if (!isDrawing) return;
-
-            const rect = canvas.getBoundingClientRect();
-            const currentX = e.clientX - rect.left;
-            const currentY = e.clientY - rect.top;
-
-            drawLine(lastX, lastY, currentX, currentY); // lokalt
-            connection.invoke("SendDrawData", lobbyId, lastX, lastY, currentX, currentY); // skicka till andra
-
-            lastX = currentX;
-            lastY = currentY;
-        });
-    }
-
-       // Ta emot chattmeddelanden från servern
     connection.on("ReceiveChatMessage", function (user, message) {
         const li = document.createElement("li");
         li.textContent = user + ": " + message;
         document.getElementById("messagesList").appendChild(li);
-
-        // Scrolla ner till senaste meddelandet
-        const chatContainer = document.getElementById("chatContainer");
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+        document.getElementById("chatContainer").scrollTop = chatContainer.scrollHeight;
     });
 
-               connection.on("ReceiveWord", function(word) {
-        console.log("Fick ord från servern:", word);  // <-- här!
+    connection.on("ReceiveWord", function (word) {
         if (role === "Ritare") {
             const wordElement = document.getElementById("wordToDraw");
-            if (wordElement) {
-                wordElement.textContent = word;
-            }
+            if (wordElement) wordElement.textContent = word;
         }
     });
 
-
-
-
-    function submitGuess() {
-        const input = document.getElementById("guessInput");
-        const guess = input.value.trim();
-        if (guess === "") return;
-
-        // Skicka gissningen till servern
-        connection.invoke("SendGuess", lobbyId, playerName, guess)
-            .catch(err => console.error(err.toString()));
-
-        input.value = "";
-    }
-
-        connection.on("CorrectGuess", function (guesser, word, guesserPoints, drawerPoints) {
+    connection.on("CorrectGuess", function (guesser, word, guesserPoints, drawerPoints) {
         alert(`${guesser} gissade rätt!\nOrdet var "${word}".\n\n+${guesserPoints} poäng till gissare\n+${drawerPoints} poäng till ritare`);
     });
 
@@ -164,13 +94,7 @@
         }
     });
 
-
-
-    function clearDrawing() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        connection.invoke("SendClear", lobbyId);
-    }
-        connection.on("StartTimer", function (seconds) {
+    connection.on("StartTimer", function (seconds) {
         let timeLeft = seconds;
         const timeDisplay = document.getElementById("timeLeft");
         timeDisplay.textContent = timeLeft;
@@ -182,10 +106,97 @@
             timeDisplay.textContent = timeLeft;
             if (timeLeft <= 0) {
                 clearInterval(window.timerInterval);
-                // Här kan du lägga till vad som händer när tiden är slut, t.ex. stoppa spelet
                 alert("Tiden är slut!");
             }
         }, 1000);
+    });
+
+    connection.on("SetRole", function (newRole) {
+        role = newRole;
+        updateUIBasedOnRole();
+
+        if (role === "Ritare") {
+            connection.invoke("RequestWord", lobbyId);
+        }
+    });
+
+    connection.start().then(() => {
+        connection.invoke("JoinLobby", lobbyId, playerName);
+        if (role === "Ritare") {
+            connection.invoke("RequestWord", lobbyId);
+        }
+        updateUIBasedOnRole();
+    });
+
+    function clearDrawing() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        connection.invoke("SendClear", lobbyId);
+    }
+
+    function submitGuess() {
+        const input = document.getElementById("guessInput");
+        const guess = input.value.trim();
+        if (guess === "") return;
+
+        connection.invoke("SendGuess", lobbyId, playerName, guess)
+            .catch(err => console.error(err.toString()));
+
+        input.value = "";
+    }
+
+    function updateUIBasedOnRole() {
+        // Uppdatera rolltext
+        const roleDisplay = document.getElementById("roleDisplay");
+        if (roleDisplay) {
+            roleDisplay.textContent = role;
+        }
+
+        // Visa/dölj ord
+        const wordContainer = document.getElementById("drawWordContainer");
+        if (wordContainer) wordContainer.style.display = role === "Ritare" ? "block" : "none";
+
+        // Visa/dölj rensa-knapp
+        const clearButton = document.querySelector("button[onclick='clearDrawing()']");
+        if (clearButton) clearButton.style.display = role === "Ritare" ? "inline-block" : "none";
+
+        // Visa/dölj gissning
+        const guessInput = document.getElementById("guessInput");
+        const guessButton = document.getElementById("guessButton");
+        if (guessInput) guessInput.style.display = role === "Gissare" ? "inline-block" : "none";
+        if (guessButton) guessButton.style.display = role === "Gissare" ? "inline-block" : "none";
+    }
+
+    // Rita bara om du är ritare
+    canvas.addEventListener("mousedown", e => {
+        if (role !== "Ritare") return;
+        isDrawing = true;
+        const rect = canvas.getBoundingClientRect();
+        lastX = e.clientX - rect.left;
+        lastY = e.clientY - rect.top;
+    });
+
+    canvas.addEventListener("mouseup", () => isDrawing = false);
+    canvas.addEventListener("mouseleave", () => isDrawing = false);
+
+    canvas.addEventListener("mousemove", e => {
+        if (!isDrawing || role !== "Ritare") return;
+        const rect = canvas.getBoundingClientRect();
+        const currentX = e.clientX - rect.left;
+        const currentY = e.clientY - rect.top;
+        drawLine(lastX, lastY, currentX, currentY);
+        connection.invoke("SendDrawData", lobbyId, lastX, lastY, currentX, currentY);
+        lastX = currentX;
+        lastY = currentY;
+    });
+
+    let isDrawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    document.getElementById("guessInput")?.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+            submitGuess();
+        }
     });
 
 </script>
