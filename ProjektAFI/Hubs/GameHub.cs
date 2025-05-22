@@ -5,9 +5,26 @@ namespace ProjektAFI.Hubs
 {
     public class GameHub : Hub
     {
+        private readonly IHttpClientFactory _httpClientFactory;
+       
+
         private static ConcurrentDictionary<string, List<string>> _lobbies = new();
         private static ConcurrentDictionary<string, string> _connectionIdToPlayerName = new();
 
+        public GameHub(IHttpClientFactory httpClientFactory)
+        {
+            _httpClientFactory = httpClientFactory;
+        }
+
+        private async Task<string> FetchWordFromApi()
+        {
+            var client = _httpClientFactory.CreateClient();
+            var response = await client.GetAsync("https://localhost:7179/words/random"); // ändra port och url vid behov
+            response.EnsureSuccessStatusCode();
+
+            var word = await response.Content.ReadAsStringAsync();
+            return word.Trim('"'); // eftersom Ok(word) returnerar JSON-string, ta bort citattecken
+        }
         public async Task JoinLobby(string lobbyId, string playerName)
         {
             _connectionIdToPlayerName[Context.ConnectionId] = playerName;
@@ -23,12 +40,27 @@ namespace ProjektAFI.Hubs
 
             await Groups.AddToGroupAsync(Context.ConnectionId, lobbyId);
             await Clients.Group(lobbyId).SendAsync("UpdatePlayerList", _lobbies[lobbyId]);
+
+            if (_lobbies.TryGetValue(lobbyId, out var players) && players.Count == 2)
+            {
+                await Clients.Group(lobbyId).SendAsync("StartTimer", 30); // Starta 30 sekunder
+            }
+
         }
+        public async Task SendGuess(string lobbyId, string playerName, string guess)
+        {
+            // Skicka gissningen till alla i lobbyn
+            await Clients.Group(lobbyId).SendAsync("ReceiveChatMessage", playerName, guess);
+        }
+
 
         public async Task StartGame(string lobbyId)
         {
             if (_lobbies.TryGetValue(lobbyId, out var players) && players.Count == 2)
             {
+                var word = await FetchWordFromApi();
+
+                // Skicka ordet till "ritaren" (spelaren med rollen "Ritare")
                 var drawer = players[0];
                 var guesser = players[1];
 
@@ -37,6 +69,10 @@ namespace ProjektAFI.Hubs
                     if (players.Contains(connection.Value))
                     {
                         var role = connection.Value == drawer ? "Ritare" : "Gissare";
+                        if (role == "Ritare")
+                        {
+                            await Clients.Client(connection.Key).SendAsync("ReceiveWord", word);
+                        }
                         await Clients.Client(connection.Key).SendAsync("NavigateToGame", new
                         {
                             Role = role,
@@ -47,6 +83,7 @@ namespace ProjektAFI.Hubs
                 }
             }
         }
+
 
         public override async Task OnDisconnectedAsync(Exception? exception)
         {

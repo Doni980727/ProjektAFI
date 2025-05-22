@@ -1,4 +1,4 @@
-﻿@{
+﻿﻿@{
     ViewBag.Title = "Spel";
     var role = ViewBag.Role as string;
     var playerName = ViewBag.PlayerName as string;
@@ -8,9 +8,18 @@
 <h1>Rita och Gissa</h1>
 <p>Du är: <strong>@role</strong></p>
 
+<div id="timer" style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">
+    Timer: <span id="timeLeft">--</span> sekunder
+</div>
+
 <canvas id="drawCanvas" width="500" height="400" style="border:1px solid black;"></canvas>
 
-@if (role == "Ritare") {
+@if (role == "Ritare")
+{
+    <div>
+        <h3>Ordet du ska rita:</h3>
+        <p id="wordToDraw" style="font-size: 24px; font-weight: bold; color: black;"></p>
+    </div>
     <button onclick="clearDrawing()">Rensa</button>
 }
 
@@ -19,6 +28,11 @@
     <input type="text" id="guessInput" placeholder="Gissa ordet" />
     <button onclick="submitGuess()">Gissa</button>
 }
+
+<div id="chatContainer" style="margin-top:20px; border:1px solid #ccc; height:150px; overflow-y:auto; padding:10px;">
+    <h4>Chatt</h4>
+    <ul id="messagesList" style="list-style:none; padding-left:0;"></ul>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.2/signalr.min.js"></script>
 <script>
@@ -91,14 +105,63 @@
         });
     }
 
+       // Ta emot chattmeddelanden från servern
+    connection.on("ReceiveChatMessage", function (user, message) {
+        const li = document.createElement("li");
+        li.textContent = user + ": " + message;
+        document.getElementById("messagesList").appendChild(li);
+
+        // Scrolla ner till senaste meddelandet
+        const chatContainer = document.getElementById("chatContainer");
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    });
+
+               connection.on("ReceiveWord", function(word) {
+        console.log("Fick ord från servern:", word);  // <-- här!
+        if (role === "Ritare") {
+            const wordElement = document.getElementById("wordToDraw");
+            if (wordElement) {
+                wordElement.textContent = word;
+            }
+        }
+    });
+
+
+
+
     function submitGuess() {
-        const guess = document.getElementById("guessInput").value;
-        alert("Du gissade: " + guess);
+        const input = document.getElementById("guessInput");
+        const guess = input.value.trim();
+        if (guess === "") return;
+
+        // Skicka gissningen till servern
+        connection.invoke("SendGuess", lobbyId, playerName, guess)
+            .catch(err => console.error(err.toString()));
+
+        input.value = "";
     }
+
 
     function clearDrawing() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         connection.invoke("SendClear", lobbyId);
     }
-</script>
+        connection.on("StartTimer", function (seconds) {
+        let timeLeft = seconds;
+        const timeDisplay = document.getElementById("timeLeft");
+        timeDisplay.textContent = timeLeft;
 
+        if (window.timerInterval) clearInterval(window.timerInterval);
+
+        window.timerInterval = setInterval(() => {
+            timeLeft--;
+            timeDisplay.textContent = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(window.timerInterval);
+                // Här kan du lägga till vad som händer när tiden är slut, t.ex. stoppa spelet
+                alert("Tiden är slut!");
+            }
+        }, 1000);
+    });
+
+</script>

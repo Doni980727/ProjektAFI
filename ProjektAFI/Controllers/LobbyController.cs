@@ -4,6 +4,7 @@ namespace ProjektAFI.Controllers
 {
     public class LobbyController : Controller
     {
+
         [HttpGet]
         public IActionResult HostLobby()
         {
