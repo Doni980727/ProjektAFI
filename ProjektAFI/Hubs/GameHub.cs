@@ -16,15 +16,6 @@ namespace ProjektAFI.Hubs
             _httpClientFactory = httpClientFactory;
         }
 
-        private async Task<string> FetchWordFromApi()
-        {
-            var client = _httpClientFactory.CreateClient();
-            var response = await client.GetAsync("https://localhost:7179/words/random"); // ändra port och url vid behov
-            response.EnsureSuccessStatusCode();
-
-            var word = await response.Content.ReadAsStringAsync();
-            return word.Trim('"'); // eftersom Ok(word) returnerar JSON-string, ta bort citattecken
-        }
         public async Task JoinLobby(string lobbyId, string playerName)
         {
             _connectionIdToPlayerName[Context.ConnectionId] = playerName;
@@ -52,6 +43,21 @@ namespace ProjektAFI.Hubs
             // Skicka gissningen till alla i lobbyn
             await Clients.Group(lobbyId).SendAsync("ReceiveChatMessage", playerName, guess);
         }
+        public async Task RequestWord(string lobbyId)
+        {
+            var client = _httpClientFactory.CreateClient();
+            var response = await client.GetAsync("https://localhost:7179/words/random");
+
+            if (response.IsSuccessStatusCode)
+            {
+                var word = await response.Content.ReadAsStringAsync();
+                await Clients.Group(lobbyId).SendAsync("ReceiveWord", word);
+            }
+            else
+            {
+                await Clients.Group(lobbyId).SendAsync("ReceiveWord", "Kunde inte hämta ord");
+            }
+        }
 
 
         public async Task StartGame(string lobbyId)
@@ -69,16 +75,18 @@ namespace ProjektAFI.Hubs
                     if (players.Contains(connection.Value))
                     {
                         var role = connection.Value == drawer ? "Ritare" : "Gissare";
-                        if (role == "Ritare")
-                        {
-                            await Clients.Client(connection.Key).SendAsync("ReceiveWord", word);
-                        }
+                       
                         await Clients.Client(connection.Key).SendAsync("NavigateToGame", new
                         {
                             Role = role,
                             LobbyId = lobbyId,
                             PlayerName = connection.Value
                         });
+
+                        if (role == "Ritare")
+                        {
+                            await Clients.Client(connection.Key).SendAsync("ReceiveWord", word);
+                        }
                     }
                 }
             }

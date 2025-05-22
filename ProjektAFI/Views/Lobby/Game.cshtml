@@ -59,8 +59,11 @@
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     });
 
-    connection.start().then(() => {
+        connection.start().then(() => {
         connection.invoke("JoinLobby", lobbyId, playerName);
+        if (role === "Ritare") {
+            connection.invoke("RequestWord", lobbyId);
+        }
     });
 
     function drawLine(startX, startY, x, y) {
