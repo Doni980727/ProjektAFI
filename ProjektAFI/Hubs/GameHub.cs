@@ -10,6 +10,11 @@ namespace ProjektAFI.Hubs
 
         private static ConcurrentDictionary<string, List<string>> _lobbies = new();
         private static ConcurrentDictionary<string, string> _connectionIdToPlayerName = new();
+        private static Dictionary<string, DateTime> _lobbyStartTimes = new();
+        private static Dictionary<string, string> _lobbyWords = new();
+        private static Dictionary<string, (string Drawer, string Guesser)> _lobbyRoles = new();
+        private static Dictionary<string, int> _playerScores = new(); // namn → poäng
+
 
         public GameHub(IHttpClientFactory httpClientFactory)
         {
@@ -40,9 +45,37 @@ namespace ProjektAFI.Hubs
         }
         public async Task SendGuess(string lobbyId, string playerName, string guess)
         {
-            // Skicka gissningen till alla i lobbyn
             await Clients.Group(lobbyId).SendAsync("ReceiveChatMessage", playerName, guess);
+
+            if (!_lobbyWords.TryGetValue(lobbyId, out var correctWord))
+                return;
+
+            if (!string.Equals(guess, correctWord, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var timeTaken = (DateTime.UtcNow - _lobbyStartTimes[lobbyId]).TotalSeconds;
+            var maxTime = 30.0;
+            var guesserScore = Math.Max(0, (int)((maxTime - timeTaken) * 10));  // max 300 poäng
+            var drawerScore = Math.Max(0, (int)(timeTaken * 5));                // max 150 poäng
+
+            if (_lobbyRoles.TryGetValue(lobbyId, out var roles))
+            {
+                var drawer = roles.Drawer;
+                var guesser = roles.Guesser;
+
+                _playerScores[drawer] = _playerScores.GetValueOrDefault(drawer, 0) + drawerScore;
+                _playerScores[guesser] = _playerScores.GetValueOrDefault(guesser, 0) + guesserScore;
+
+                await Clients.Group(lobbyId).SendAsync("CorrectGuess", guesser, correctWord, guesserScore, drawerScore);
+                await Clients.Group(lobbyId).SendAsync("UpdateScores", _playerScores);
+
+                // Byt roller och starta ny omgång
+                _lobbyRoles[lobbyId] = (guesser, drawer);
+                await Task.Delay(2000); // lite paus innan ny runda
+                await RequestWord(lobbyId);
+            }
         }
+
         public async Task RequestWord(string lobbyId)
         {
             var client = _httpClientFactory.CreateClient();
@@ -51,7 +84,12 @@ namespace ProjektAFI.Hubs
             if (response.IsSuccessStatusCode)
             {
                 var word = await response.Content.ReadAsStringAsync();
+
+                _lobbyWords[lobbyId] = word;
+                _lobbyStartTimes[lobbyId] = DateTime.UtcNow;
+
                 await Clients.Group(lobbyId).SendAsync("ReceiveWord", word);
+                await Clients.Group(lobbyId).SendAsync("StartTimer", 30);
             }
             else
             {
@@ -60,33 +98,33 @@ namespace ProjektAFI.Hubs
         }
 
 
+
         public async Task StartGame(string lobbyId)
+{
+    if (_lobbies.TryGetValue(lobbyId, out var players) && players.Count == 2)
+    {
+        var drawer = players[0];
+        var guesser = players[1];
+
+        _lobbyRoles[lobbyId] = (drawer, guesser);
+
+        foreach (var connection in _connectionIdToPlayerName)
         {
-            if (_lobbies.TryGetValue(lobbyId, out var players) && players.Count == 2)
+            if (players.Contains(connection.Value))
             {
+                var role = connection.Value == drawer ? "Ritare" : "Gissare";
 
-                // Skicka ordet till "ritaren" (spelaren med rollen "Ritare")
-                var drawer = players[0];
-                var guesser = players[1];
-
-                foreach (var connection in _connectionIdToPlayerName)
+                await Clients.Client(connection.Key).SendAsync("NavigateToGame", new
                 {
-                    if (players.Contains(connection.Value))
-                    {
-                        var role = connection.Value == drawer ? "Ritare" : "Gissare";
-                       
-                        await Clients.Client(connection.Key).SendAsync("NavigateToGame", new
-                        {
-                            Role = role,
-                            LobbyId = lobbyId,
-                            PlayerName = connection.Value
-                        });
-
-                        
-                    }
-                }
+                    Role = role,
+                    LobbyId = lobbyId,
+                    PlayerName = connection.Value
+                });
             }
         }
+    }
+}
+
 
 
         public override async Task OnDisconnectedAsync(Exception? exception)

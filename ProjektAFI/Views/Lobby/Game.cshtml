@@ -14,6 +14,12 @@
 
 <canvas id="drawCanvas" width="500" height="400" style="border:1px solid black;"></canvas>
 
+<div id="scoreBoard" style="margin-top:20px;">
+    <h4>Poäng</h4>
+    <ul id="scoreList"></ul>
+</div>
+
+
 @if (role == "Ritare")
 {
     <div>
@@ -36,7 +42,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.2/signalr.min.js"></script>
 <script>
-    const role = "@role";
+    let role = "@role";
     const playerName = "@playerName";
     const lobbyId = "@lobbyId";
 
@@ -143,6 +149,21 @@
 
         input.value = "";
     }
+
+        connection.on("CorrectGuess", function (guesser, word, guesserPoints, drawerPoints) {
+        alert(`${guesser} gissade rätt!\nOrdet var "${word}".\n\n+${guesserPoints} poäng till gissare\n+${drawerPoints} poäng till ritare`);
+    });
+
+    connection.on("UpdateScores", function (scores) {
+        const scoreList = document.getElementById("scoreList");
+        scoreList.innerHTML = "";
+        for (const player in scores) {
+            const li = document.createElement("li");
+            li.textContent = `${player}: ${scores[player]} poäng`;
+            scoreList.appendChild(li);
+        }
+    });
+
 
 
     function clearDrawing() {
