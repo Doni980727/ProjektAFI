@@ -84,8 +84,8 @@
 
     connection.on("CorrectGuess", function (guesser, word, guesserPoints, drawerPoints) {
         const msg = guesser === "(ingen)"
-        ? `Tiden tog slut! Ordet var "${word}".`
-        : `${guesser} gissade rätt! Ordet var "${word}".\n+${guesserPoints} till gissare, +${drawerPoints} till ritare`;
+            ? `Tiden tog slut! Ordet var "${word}".`
+            : `${guesser} gissade rätt! Ordet var "${word}".\n+${guesserPoints} till gissare, +${drawerPoints} till ritare`;
 
         showRoundMessage(msg);
     });
@@ -108,14 +108,17 @@
 
         if (window.timerInterval) clearInterval(window.timerInterval);
 
-            window.timerInterval = setInterval(() => {
+        window.timerInterval = setInterval(() => {
             timeLeft--;
             timeDisplay.textContent = timeLeft;
             if (timeLeft <= 0) {
-            clearInterval(window.timerInterval);
-            connection.invoke("TimeUp", lobbyId);
-        }
-    }, 1000);
+                clearInterval(window.timerInterval);
+                connection.invoke("TimeUp", lobbyId); // du har redan detta
+                // Ingen alert – låt CorrectGuess visa meddelande via showRoundMessage
+            }
+
+
+        }, 1000);
     });
 
     connection.on("SetRole", function (newRole) {
@@ -128,9 +131,9 @@
     });
 
     connection.start().then(() => {
-    connection.invoke("JoinLobby", lobbyId, playerName);
+        connection.invoke("JoinLobby", lobbyId, playerName);
         if (role === "Ritare") {
-        connection.invoke("RequestWord", lobbyId);
+            connection.invoke("RequestWord", lobbyId);
         }
         updateUIBasedOnRole();
     });
@@ -146,7 +149,7 @@
         if (guess === "") return;
 
         connection.invoke("SendGuess", lobbyId, playerName, guess)
-        .catch(err => console.error(err.toString()));
+            .catch(err => console.error(err.toString()));
 
         input.value = "";
     }
@@ -204,7 +207,7 @@
         drawLine(lastX, lastY, currentX, currentY);
         connection.invoke("SendDrawData", lobbyId, lastX, lastY, currentX, currentY);
         lastX = currentX;
-    l   astY = currentY;
+        lastY = currentY;
     });
 
     let isDrawing = false;
