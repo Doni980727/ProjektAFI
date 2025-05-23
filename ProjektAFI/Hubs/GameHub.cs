@@ -69,26 +69,9 @@ namespace ProjektAFI.Hubs
                 await Clients.Group(lobbyId).SendAsync("CorrectGuess", guesser, correctWord, guesserScore, drawerScore);
                 await Clients.Group(lobbyId).SendAsync("UpdateScores", _playerScores);
 
-                // 🔄 Växla roller
-                _lobbyRoles[lobbyId] = (guesser, drawer);
-
                 await Task.Delay(2000); // kort paus
 
-                // 🧽 Rensa canvasen för ny runda
-                await Clients.Group(lobbyId).SendAsync("ReceiveClear");
-
-                // 🧠 Skicka nya roller till spelarna
-                foreach (var connection in _connectionIdToPlayerName)
-                {
-                    if (_lobbies[lobbyId].Contains(connection.Value))
-                    {
-                        var newRole = connection.Value == _lobbyRoles[lobbyId].Drawer ? "Ritare" : "Gissare";
-                        await Clients.Client(connection.Key).SendAsync("SetRole", newRole);
-                    }
-                }
-
-                // 🆕 Skicka nytt ord till ritare
-                await RequestWord(lobbyId);
+                await BytRollerOchStartaNyRunda(lobbyId);
             }
         }
 
@@ -125,7 +108,67 @@ namespace ProjektAFI.Hubs
             }
         }
 
+        public async Task TimeUp(string lobbyId)
+        {
+            if (_lobbyRoles.TryGetValue(lobbyId, out var roles))
+            {
+                var drawer = roles.Drawer;
+                var guesser = roles.Guesser;
+                var word = _lobbyWords.ContainsKey(lobbyId) ? _lobbyWords[lobbyId] : "(okänt)";
 
+                // 0 poäng till båda
+                _playerScores[drawer] = _playerScores.GetValueOrDefault(drawer, 0);
+                _playerScores[guesser] = _playerScores.GetValueOrDefault(guesser, 0);
+
+                await Clients.Group(lobbyId).SendAsync("CorrectGuess", "(ingen)", word, 0, 0);
+                await Clients.Group(lobbyId).SendAsync("UpdateScores", _playerScores);
+
+                // Byt roller
+                _lobbyRoles[lobbyId] = (guesser, drawer);
+
+                // Rensa canvas
+                await Clients.Group(lobbyId).SendAsync("ReceiveClear");
+
+                // Starta ny runda
+                await Task.Delay(2000); // liten paus
+
+                foreach (var connection in _connectionIdToPlayerName)
+                {
+                    if (_lobbies[lobbyId].Contains(connection.Value))
+                    {
+                        var newRole = connection.Value == _lobbyRoles[lobbyId].Drawer ? "Ritare" : "Gissare";
+                        await Clients.Client(connection.Key).SendAsync("SetRole", newRole);
+                    }
+                }
+
+                await RequestWord(lobbyId);
+            }
+        }
+
+
+        private async Task BytRollerOchStartaNyRunda(string lobbyId)
+        {
+            if (_lobbyRoles.TryGetValue(lobbyId, out var roles) && _lobbies.TryGetValue(lobbyId, out var players) && players.Count == 2)
+            {
+                // Växla roller
+                _lobbyRoles[lobbyId] = (roles.Guesser, roles.Drawer);
+
+                foreach (var connection in _connectionIdToPlayerName)
+                {
+                    if (players.Contains(connection.Value))
+                    {
+                        var newRole = connection.Value == roles.Guesser ? "Ritare" : "Gissare";
+                        await Clients.Client(connection.Key).SendAsync("SetRole", newRole);
+                    }
+                }
+
+                // Rensa canvas
+                await Clients.Group(lobbyId).SendAsync("ReceiveClear");
+
+                await Task.Delay(500);
+                await RequestWord(lobbyId);
+            }
+        }
 
 
         public async Task StartGame(string lobbyId)

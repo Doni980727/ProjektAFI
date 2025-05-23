@@ -12,6 +12,8 @@
     Timer: <span id="timeLeft">--</span> sekunder
 </div>
 
+<div id="roundMessage" style="display: none; background-color: #ffffcc; padding: 10px; margin-bottom: 10px; font-weight: bold;"></div>
+
 <canvas id="drawCanvas" width="500" height="400" style="border:1px solid black;"></canvas>
 
 <div id="scoreBoard" style="margin-top:20px;">
@@ -81,8 +83,13 @@
     });
 
     connection.on("CorrectGuess", function (guesser, word, guesserPoints, drawerPoints) {
-        alert(`${guesser} gissade rätt!\nOrdet var "${word}".\n\n+${guesserPoints} poäng till gissare\n+${drawerPoints} poäng till ritare`);
+        const msg = guesser === "(ingen)"
+            ? `Tiden tog slut! Ordet var "${word}".`
+            : `${guesser} gissade rätt! Ordet var "${word}".\n+${guesserPoints} till gissare, +${drawerPoints} till ritare`;
+
+        showRoundMessage(msg);
     });
+
 
     connection.on("UpdateScores", function (scores) {
         const scoreList = document.getElementById("scoreList");
@@ -106,8 +113,11 @@
             timeDisplay.textContent = timeLeft;
             if (timeLeft <= 0) {
                 clearInterval(window.timerInterval);
-                alert("Tiden är slut!");
+                connection.invoke("TimeUp", lobbyId); // du har redan detta
+                // Ingen alert – låt CorrectGuess visa meddelande via showRoundMessage
             }
+
+
         }, 1000);
     });
 
@@ -143,6 +153,17 @@
 
         input.value = "";
     }
+
+    function showRoundMessage(message) {
+        const div = document.getElementById("roundMessage");
+        div.textContent = message;
+        div.style.display = "block";
+
+        setTimeout(() => {
+            div.style.display = "none";
+        }, 5000); // Dölj efter 5 sekunder
+    }
+
 
     function updateUIBasedOnRole() {
         // Uppdatera rolltext
