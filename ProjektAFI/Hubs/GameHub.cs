@@ -6,7 +6,7 @@ namespace ProjektAFI.Hubs
     public class GameHub : Hub
     {
         private readonly IHttpClientFactory _httpClientFactory;
-       
+
 
         private static ConcurrentDictionary<string, List<string>> _lobbies = new();
         private static ConcurrentDictionary<string, string> _connectionIdToPlayerName = new();
@@ -172,30 +172,30 @@ namespace ProjektAFI.Hubs
 
 
         public async Task StartGame(string lobbyId)
-{
-    if (_lobbies.TryGetValue(lobbyId, out var players) && players.Count == 2)
-    {
-        var drawer = players[0];
-        var guesser = players[1];
-
-        _lobbyRoles[lobbyId] = (drawer, guesser);
-
-        foreach (var connection in _connectionIdToPlayerName)
         {
-            if (players.Contains(connection.Value))
+            if (_lobbies.TryGetValue(lobbyId, out var players) && players.Count == 2)
             {
-                var role = connection.Value == drawer ? "Ritare" : "Gissare";
+                var drawer = players[0];
+                var guesser = players[1];
 
-                await Clients.Client(connection.Key).SendAsync("NavigateToGame", new
+                _lobbyRoles[lobbyId] = (drawer, guesser);
+
+                foreach (var connection in _connectionIdToPlayerName)
                 {
-                    Role = role,
-                    LobbyId = lobbyId,
-                    PlayerName = connection.Value
-                });
+                    if (players.Contains(connection.Value))
+                    {
+                        var role = connection.Value == drawer ? "Ritare" : "Gissare";
+
+                        await Clients.Client(connection.Key).SendAsync("NavigateToGame", new
+                        {
+                            Role = role,
+                            LobbyId = lobbyId,
+                            PlayerName = connection.Value
+                        });
+                    }
+                }
             }
         }
-    }
-}
 
 
 
