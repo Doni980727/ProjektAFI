@@ -1,0 +1,9 @@
+﻿@model Dictionary<string, int>
+
+<h2>Resultat</h2>
+<ul>
+    @foreach (var kvp in Model)
+    {
+        <li>@kvp.Key: @kvp.Value poäng</li>
+    }
+</ul>

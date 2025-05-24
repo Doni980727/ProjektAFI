@@ -130,6 +130,19 @@
         }
     });
 
+            connection.on("GameOver", function (scores) {
+        const url = "/Lobby/Results";
+        fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(scores)
+        }).then(() => {
+            window.location.href = url; // Detta behöver ändras!
+        });
+    });
+
+
+
     connection.start().then(() => {
         connection.invoke("JoinLobby", lobbyId, playerName);
         if (role === "Ritare") {

@@ -54,6 +54,12 @@ namespace ProjektAFI.Controllers
             ViewBag.Role = role;
             return View();
         }
+        
+        [HttpGet]
+        public IActionResult Results(Dictionary<string, int> scores)
+        {
+            return View(scores);
+        }
 
     }
 }

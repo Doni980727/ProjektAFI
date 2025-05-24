@@ -7,6 +7,7 @@ namespace ProjektAFI.Hubs
     {
         private readonly IHttpClientFactory _httpClientFactory;
 
+        private static ConcurrentDictionary<string, Dictionary<string, int>> _lobbyDrawCounts = new();
 
         private static ConcurrentDictionary<string, List<string>> _lobbies = new();
         private static ConcurrentDictionary<string, string> _connectionIdToPlayerName = new();
@@ -148,8 +149,28 @@ namespace ProjektAFI.Hubs
 
         private async Task BytRollerOchStartaNyRunda(string lobbyId)
         {
-            if (_lobbyRoles.TryGetValue(lobbyId, out var roles) && _lobbies.TryGetValue(lobbyId, out var players) && players.Count == 2)
+            if (_lobbyRoles.TryGetValue(lobbyId, out var roles) &&
+                _lobbies.TryGetValue(lobbyId, out var players) &&
+                players.Count == 2)
             {
+                // Öka räkningen för den som just ritade
+                if (_lobbyDrawCounts.TryGetValue(lobbyId, out var drawCounts))
+                {
+                    if (drawCounts.ContainsKey(roles.Drawer))
+                        drawCounts[roles.Drawer]++;
+                }
+
+                // Kontrollera om båda har ritat 5 gånger -----------------------------------------------------------------------HÄR ÄNDRAR DU ANTALET OMGÅNGAR----------------------------------------
+                var done = _lobbyDrawCounts[lobbyId].Values.All(count => count >= 3);
+                if (done)
+                {
+                    // Skicka resultat
+                    await Clients.Group(lobbyId).SendAsync("GameOver", _playerScores);
+
+                    // Du kan även navigera till en resultatsida via klienten
+                    return;
+                }
+
                 // Växla roller
                 _lobbyRoles[lobbyId] = (roles.Guesser, roles.Drawer);
 
@@ -171,6 +192,7 @@ namespace ProjektAFI.Hubs
         }
 
 
+
         public async Task StartGame(string lobbyId)
         {
             if (_lobbies.TryGetValue(lobbyId, out var players) && players.Count == 2)
@@ -179,6 +201,12 @@ namespace ProjektAFI.Hubs
                 var guesser = players[1];
 
                 _lobbyRoles[lobbyId] = (drawer, guesser);
+
+                _lobbyDrawCounts[lobbyId] = new Dictionary<string, int>
+                {
+                    { drawer, 0 },
+                    { guesser, 0 }
+                };
 
                 foreach (var connection in _connectionIdToPlayerName)
                 {
