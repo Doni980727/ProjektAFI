@@ -38,10 +38,7 @@ namespace ProjektAFI.Hubs
             await Groups.AddToGroupAsync(Context.ConnectionId, lobbyId);
             await Clients.Group(lobbyId).SendAsync("UpdatePlayerList", _lobbies[lobbyId]);
 
-            if (_lobbies.TryGetValue(lobbyId, out var players) && players.Count == 2)
-            {
-                await Clients.Group(lobbyId).SendAsync("StartTimer", 30); // Starta 30 sekunder
-            }
+            
 
         }
         public async Task SendGuess(string lobbyId, string playerName, string guess)
@@ -160,14 +157,11 @@ namespace ProjektAFI.Hubs
                         drawCounts[roles.Drawer]++;
                 }
 
-                // Kontrollera om båda har ritat 5 gånger -----------------------------------------------------------------------HÄR ÄNDRAR DU ANTALET OMGÅNGAR----------------------------------------
                 var done = _lobbyDrawCounts[lobbyId].Values.All(count => count >= 3);
                 if (done)
                 {
-                    // Skicka resultat
                     await Clients.Group(lobbyId).SendAsync("GameOver", _playerScores);
 
-                    // Du kan även navigera till en resultatsida via klienten
                     return;
                 }
 

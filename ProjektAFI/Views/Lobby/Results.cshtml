@@ -1,9 +1,19 @@
 ﻿@model Dictionary<string, int>
 
-<h2>Resultat</h2>
+@{
+    ViewBag.Title = "Resultat";
+    var winner = Model.OrderByDescending(p => p.Value).First();
+}
+
+<h1>Spelet är över!</h1>
+<h2>Vinnare: @winner.Key med @winner.Value poäng 🎉</h2>
+
+<h3>Slutresultat:</h3>
 <ul>
-    @foreach (var kvp in Model)
+    @foreach (var player in Model)
     {
-        <li>@kvp.Key: @kvp.Value poäng</li>
+        <li>@player.Key: @player.Value poäng</li>
     }
 </ul>
+
+<a href="/" class="btn btn-primary">Tack & Godnatt Bram/a>

@@ -130,16 +130,21 @@
         }
     });
 
-            connection.on("GameOver", function (scores) {
+               connection.on("GameOver", function (scores) {
         const url = "/Lobby/Results";
         fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(scores)
-        }).then(() => {
-            window.location.href = url; // Detta behöver ändras!
+        })
+        .then(response => response.text())
+        .then(html => {
+            document.open();
+            document.write(html);
+            document.close();
         });
     });
+
 
 
 
